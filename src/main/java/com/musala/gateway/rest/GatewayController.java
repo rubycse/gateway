@@ -6,7 +6,6 @@ import com.musala.gateway.service.GatewayService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.Errors;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -32,7 +31,7 @@ public class GatewayController {
     @GetMapping
     public ResponseEntity<Collection<Gateway>> getGateways() {
         List<Gateway> gateways = gatewayService.findAll();
-        gateways.forEach(gateway -> addLink(gateway));
+        gateways.forEach(this::addLink);
 
         return new ResponseEntity<>(gateways, HttpStatus.OK);
     }
@@ -40,18 +39,12 @@ public class GatewayController {
     @GetMapping("/{serialNumber}")
     public ResponseEntity<Gateway> getGateway(@PathVariable String serialNumber) {
         Gateway gateway = gatewayService.findGateway(serialNumber);
-        if (gateway == null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
 
         return ResponseEntity.ok(addLink(gateway));
     }
 
     @PostMapping
-    public ResponseEntity<Void> addGateway(@Valid @RequestBody Gateway gateway, Errors errors) {
-        if (errors.hasErrors() || gateway == null) {
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }
+    public ResponseEntity<Void> addGateway(@Valid @RequestBody Gateway gateway) {
 
         gateway = gatewayService.save(gateway);
 
@@ -65,24 +58,14 @@ public class GatewayController {
     }
 
     @DeleteMapping("/{serialNumber}")
-    public ResponseEntity<Void> removeGateway(@PathVariable String serialNumber) {
+    public void deleteGateway(@PathVariable String serialNumber) {
         Gateway gateway = gatewayService.findGateway(serialNumber);
-        if (gateway == null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-
         gatewayService.deleteById(gateway.getId());
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     @GetMapping("/{serialNumber}/devices")
     public ResponseEntity<Collection<Device>> getDevices(@PathVariable String serialNumber) {
         Gateway gateway = gatewayService.findGateway(serialNumber);
-        if (gateway == null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
-
         addLink(gateway);
 
         return ResponseEntity.ok(gateway.getDevices());
@@ -93,26 +76,15 @@ public class GatewayController {
                                             @PathVariable int uid) {
 
         Device device = gatewayService.getDevice(serialNumber, uid);
-        if (device == null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
 
         return ResponseEntity.ok(addLink(device, serialNumber));
     }
 
     @PostMapping("/{serialNumber}/devices")
     public ResponseEntity<Void> addDevice(@PathVariable String serialNumber,
-                                          @Valid @RequestBody Device device,
-                                          Errors errors) {
+                                          @Valid @RequestBody Device device) {
 
-        if (errors.hasErrors()) {
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }
-
-        boolean deviceAdded = gatewayService.addDevice(serialNumber, device);
-        if (!deviceAdded) {
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }
+        gatewayService.addDevice(serialNumber, device);
 
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
@@ -124,15 +96,8 @@ public class GatewayController {
     }
 
     @DeleteMapping("/{serialNumber}/devices/{uid}")
-    public ResponseEntity<Void> removeDevice(@PathVariable String serialNumber,
-                                             @PathVariable int uid) {
-
-        boolean removed = gatewayService.removeDevice(serialNumber, uid);
-        if (!removed) {
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public void removeDevice(@PathVariable String serialNumber, @PathVariable int uid) {
+        gatewayService.removeDevice(serialNumber, uid);
     }
 
     private Gateway addLink(Gateway gateway) {

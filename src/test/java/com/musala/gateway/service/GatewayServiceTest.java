@@ -15,6 +15,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.TransactionSystemException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import javax.transaction.Transactional;
 import javax.validation.ConstraintViolationException;
@@ -62,7 +63,7 @@ public class GatewayServiceTest {
     @Test(expected = DataIntegrityViolationException.class)
     public void test_addGatewayWithDuplicareSerialNumber() {
         Gateway gateway = new Gateway();
-        gateway.setSerialNumber("SL100");
+        gateway.setSerialNumber("SL100"); // Should contain a non-digit character in text field, otherwise JsonParser parse this as number and can not match with expected string value.
         gateway.setName("Whatever");
         gateway.setIpAddress("192.168.0.0");
         gatewayService.save(gateway);
@@ -81,40 +82,39 @@ public class GatewayServiceTest {
 
     @Test
     @Transactional
-    public void test_removeDevice() {
-        assertFalse(gatewayService.removeDevice(gateway.getSerialNumber(), 1003));
-        assertTrue(gatewayService.removeDevice(gateway.getSerialNumber(), 1001));
+    public void test_validRemoveDevice() {
+        gatewayService.removeDevice(gateway.getSerialNumber(), 1001);
     }
 
-    @Test
+    @Test(expected = RuntimeException.class)
     @Transactional
-    public void test_addEmptyDevice() {
-        assertFalse(gatewayService.addDevice(gateway.getSerialNumber(), null));
+    public void test_invalidRemoveDevice() {
+        gatewayService.removeDevice(gateway.getSerialNumber(), 1003);
     }
 
-    @Test
+    @Test(expected = RuntimeException.class)
     @Transactional
     public void test_addDeviceWithDuplicateUid() {
-        assertFalse(gatewayService.addDevice(gateway.getSerialNumber(), device1001));
+        gatewayService.addDevice(gateway.getSerialNumber(), device1001);
     }
 
     @Test
     @Transactional
     public void test_addNewDevice() {
         Device newDevice = createDevice(1003);
-        assertTrue(gatewayService.addDevice(gateway.getSerialNumber(), newDevice));
+        gatewayService.addDevice(gateway.getSerialNumber(), newDevice);
     }
 
-    @Test
+    @Test(expected = RuntimeException.class)
     @Transactional
     public void test_addMoreThanMaxAllowedDevice() {
         IntStream.rangeClosed(1, remainingAllowedDevice()).forEach(uid -> {
             Device newDevice = createDevice(uid);
-            assertTrue(gatewayService.addDevice(gateway.getSerialNumber(), newDevice));
+            gatewayService.addDevice(gateway.getSerialNumber(), newDevice);
         });
 
         Device newDevice = createDevice(remainingAllowedDevice() + 1);
-        assertFalse(gatewayService.addDevice(gateway.getSerialNumber(), newDevice));
+        gatewayService.addDevice(gateway.getSerialNumber(), newDevice);
     }
 
     private Device createDevice(int uid) {

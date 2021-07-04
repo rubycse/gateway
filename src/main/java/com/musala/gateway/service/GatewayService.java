@@ -2,6 +2,7 @@ package com.musala.gateway.service;
 
 import com.musala.gateway.entity.Device;
 import com.musala.gateway.entity.Gateway;
+import com.musala.gateway.exceptions.NotFoundException;
 import com.musala.gateway.repository.GatewayRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,7 @@ import javax.transaction.Transactional;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * @author lutfun
@@ -22,7 +24,12 @@ public class GatewayService {
     GatewayRepository gatewayRepository;
 
     public Gateway findGateway(String gatewaySerialNumber) {
-        return gatewayRepository.findBySerialNumber(gatewaySerialNumber).orElse(null);
+        Optional<Gateway> gatewayOptional = gatewayRepository.findBySerialNumber(gatewaySerialNumber);
+        if (!gatewayOptional.isPresent()) {
+            throw new NotFoundException("Gateway not Found");
+        }
+
+        return gatewayOptional.get();
     }
 
     public List<Gateway> findAll() {
@@ -35,26 +42,24 @@ public class GatewayService {
 
     public Device getDevice(String gatewaySerialNumber, int deviceUid) {
         Gateway gateway = findGateway(gatewaySerialNumber);
-        if (gateway == null) {
-            return null;
-        }
 
-        return gateway.getDevices()
+        Optional<Device> deviceOptional = gateway.getDevices()
                 .stream()
                 .filter(d -> d.getUid().equals(deviceUid))
-                .findAny()
-                .orElse(null);
+                .findAny();
+
+        if (!deviceOptional.isPresent()) {
+            throw new NotFoundException("Device not found!");
+        }
+
+        return deviceOptional.get();
     }
 
     @Transactional
-    public boolean addDevice(String gatewaySerialNumber, Device device) {
-        if (device == null) {
-            return false;
-        }
-
+    public void addDevice(String gatewaySerialNumber, Device device) {
         Gateway gateway = findGateway(gatewaySerialNumber);
-        if (gateway == null || gateway.deviceLimitReached()) {
-            return false;
+        if (gateway.deviceLimitReached()) {
+            throw new RuntimeException("Already added 10 devices, no more is allowed.");
         }
 
         boolean deviceExists = gateway.getDevices()
@@ -62,33 +67,26 @@ public class GatewayService {
                 .anyMatch(device1 -> device1.equals(device));
 
         if (deviceExists) {
-            return false;
+            throw new RuntimeException("Device already added.");
         }
 
         device.setCreated(ZonedDateTime.now());
         gateway.addDevice(device);
         gatewayRepository.save(gateway);
-
-        return true;
     }
 
     @Transactional
-    public boolean removeDevice(String gatewaySerialNumber, int deviceUid) {
+    public void removeDevice(String gatewaySerialNumber, int deviceUid) {
         Gateway gateway = findGateway(gatewaySerialNumber);
-        if (gateway == null) {
-            return false;
-        }
 
         boolean removed = gateway.getDevices()
                 .remove(new Device(deviceUid, null, null, null));
 
         if (!removed) {
-            return false;
+            throw new NotFoundException("Device not found!");
         }
 
         gatewayRepository.save(gateway);
-
-        return true;
     }
 
     @Transactional
